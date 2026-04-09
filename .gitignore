@@ -3,3 +3,12 @@ __pycache__/
 .env
 .DS_Store
 *.session
+venv/
+# Firebase leftovers
+firebase.json
+.firebaserc
+main.py
+public/
+# Railway leftovers
+Procfile
+runtime.txt
