@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Мафия — Анализ турнира</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0d0d0d;
+      --card: #1a1a1a;
+      --border: #2a2a2a;
+      --accent: #c9a84c;
+      --accent2: #e0c060;
+      --text: #f0f0f0;
+      --muted: #777;
+      --green: #2ecc71;
+      --red: #e74c3c;
+    }
+    /* Tournaments */
+    .tournaments-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 28px; width: 100%; max-width: 640px; margin-bottom: 24px;
+    }
+    .tournaments-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .tournaments-title { font-size: 16px; font-weight: 700; }
+    .date-range { font-size: 12px; color: var(--muted); }
+    .tournament-item {
+      padding: 12px 0; border-bottom: 1px solid #1f1f1f;
+      display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
+      transition: background .15s; border-radius: 8px; padding: 10px 8px;
+    }
+    .tournament-item:hover { background: rgba(255,255,255,0.03); }
+    .tournament-item:last-child { border-bottom: none; }
+    .t-date {
+      min-width: 52px; font-size: 11px; color: var(--muted);
+      text-align: center; padding-top: 2px;
+    }
+    .t-date .day { font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1; }
+    .t-date .month { font-size: 10px; text-transform: uppercase; }
+    .t-info { flex: 1; }
+    .t-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+    .t-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
+    .t-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    }
+    .badge-seating { background: rgba(46,204,113,0.15); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
+    .badge-no-seating { background: rgba(231,76,60,0.12); color: #e88; border: 1px solid rgba(231,76,60,0.25); }
+    .badge-online { background: rgba(52,152,219,0.15); color: #5bc; border: 1px solid rgba(52,152,219,0.3); }
+    .today-line { text-align: center; font-size: 11px; color: var(--accent); margin: 8px 0; letter-spacing: 1px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--text), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 36px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 640px;
+      margin-bottom: 24px;
+    }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      transition: border-color 0.2s;
+      appearance: none;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .btn-row { display: flex; gap: 10px; }
+    button {
+      flex: 1;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+    .btn-secondary { background: #222; color: var(--muted); border: 1px solid var(--border); }
+    .btn-secondary:hover { color: var(--text); border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    #status { font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 20px; }
+    #status.error { color: var(--red); }
+
+    /* Results */
+    .results-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 640px;
+      display: none;
+    }
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .results-title { font-size: 16px; font-weight: 700; }
+    .badge {
+      background: #222;
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .badge span { color: var(--accent); font-weight: 700; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    thead th:not(:first-child) { text-align: right; }
+    tbody tr { transition: background 0.15s; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    tbody td {
+      padding: 10px 10px;
+      font-size: 14px;
+      border-bottom: 1px solid #1f1f1f;
+    }
+    tbody td:not(:first-child) { text-align: right; color: var(--muted); }
+    .rank { color: var(--muted); font-size: 12px; width: 24px; }
+    .player-name { font-weight: 500; }
+    .joint-count { color: var(--accent) !important; font-weight: 700; }
+    .pct-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bar-bg {
+      width: 60px;
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #333;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  .lang-switcher { display:flex; gap:6px; margin-bottom:20px; }
+  .lang-btn {
+    padding:4px 12px; border-radius:20px; border:1px solid var(--border);
+    background:transparent; color:var(--muted); font-size:12px; cursor:pointer; transition:all .2s;
+  }
+  .lang-btn.active { background:var(--accent); color:#000; border-color:var(--accent); font-weight:600; }
+  </style>
+</head>
+<body>
+  <h1>MAFIA</h1>
+  <p class="subtitle" data-i18n="subtitle">Анализ совместных игр в турнире</p>
+  <div class="lang-switcher">
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('ru')">RU</button>
+    <button class="lang-btn" onclick="setLang('uk')">UK</button>
+  </div>
+
+  <!-- Tournaments block -->
+  <div class="tournaments-card" id="tournamentsBlock">
+    <div class="tournaments-header">
+      <div class="tournaments-title" data-i18n="tourTitle">Tournaments ±2 days</div>
+      <div class="date-range" id="dateRange"></div>
+    </div>
+    <div id="tournamentsList"><div style="color:var(--muted);font-size:13px"><span class="spinner"></span> <span data-i18n="loading">Loading tournaments...</span></div></div>
+  </div>
+
+  <input type="hidden" id="url" />
+  <div class="card" id="analyzeCard" style="display:none">
+    <div class="field">
+      <label data-i18n="nicknameLabel">Player nickname</label>
+      <select id="nicknameSelect" style="display:none">
+        <option value="" data-i18n="selectPlaceholder">— Select nickname from list —</option>
+      </select>
+      <input type="text" id="nicknameInput" data-i18n-placeholder="nicknamePlaceholder" placeholder="Enter nickname manually" style="margin-top:8px" />
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary btn-full" onclick="analyze()" id="btnAnalyze" data-i18n="analyzeBtn">Analyze</button>
+    </div>
+    <div id="status"></div>
+    <div id="tournamentLink" style="display:none;margin-top:10px;font-size:12px;">
+      <a id="tournamentLinkA" href="#" target="_blank" style="color:var(--muted)">🔗 Открыть турнир на mafgame.org</a>
+    </div>
+  </div>
+
+  <div class="results-card" id="results">
+    <div class="results-header">
+      <div class="results-title" id="resultsTitle"></div>
+      <div class="badge" id="totalGamesBadge"><span data-i18n="gamesPlayed">Games</span>: <span id="totalGames">0</span></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th data-i18n="colPlayer">Player</th>
+          <th data-i18n="colJoint">Joint</th>
+          <th data-i18n="colTotal">Total in tournament</th>
+          <th data-i18n="colPct">% meetings</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const I18N = {
+      en: {
+        subtitle: 'Joint game analysis in tournament',
+        tourTitle: 'Tournaments ±2 days',
+        loading: 'Loading tournaments...',
+        nicknameLabel: 'Player nickname',
+        nicknamePlaceholder: 'Enter nickname manually',
+        selectPlaceholder: '— Select nickname from list —',
+        analyzeBtn: 'Analyze',
+        gamesPlayed: 'Games',
+        colPlayer: 'Player', colJoint: 'Joint', colTotal: 'Total in tournament', colPct: '% meetings',
+        seatingYes: '✓ seating ready', seatingNo: '⏳ no seating',
+        todayLine: '— today',
+        loadedPlayers: n => `✓ Loaded ${n} players`,
+        noSeating: 'Seating not ready — no game data yet',
+        errPrefix: 'Error: ',
+        jointWith: nick => `Joint games: ${nick}`,
+        openLink: name => `🔗 ${name}`,
+        loadingPlayers: 'Loading players...',
+      },
+      ru: {
+        subtitle: 'Анализ совместных игр в турнире',
+        tourTitle: 'Турниры ±2 дня',
+        loading: 'Загружаю турниры...',
+        nicknameLabel: 'Никнейм игрока',
+        nicknamePlaceholder: 'Введите никнейм вручную',
+        selectPlaceholder: '— Выберите никнейм из списка —',
+        analyzeBtn: 'Анализировать',
+        gamesPlayed: 'Игр',
+        colPlayer: 'Игрок', colJoint: 'Совместных', colTotal: 'Всего в турнире', colPct: '% встреч',
+        seatingYes: '✓ рассадка есть', seatingNo: '⏳ рассадки нет',
+        todayLine: '— сегодня',
+        loadedPlayers: n => `✓ Загружено ${n} игроков`,
+        noSeating: 'Рассадка ещё не готова — данные по играм отсутствуют',
+        errPrefix: 'Ошибка: ',
+        jointWith: nick => `Совместные игры: ${nick}`,
+        openLink: name => `🔗 ${name}`,
+        loadingPlayers: 'Загружаю игроков...',
+      },
+      uk: {
+        subtitle: 'Аналіз спільних ігор у турнірі',
+        tourTitle: 'Турніри ±2 дні',
+        loading: 'Завантажую турніри...',
+        nicknameLabel: 'Нікнейм гравця',
+        nicknamePlaceholder: 'Введіть нікнейм вручну',
+        selectPlaceholder: '— Оберіть нікнейм зі списку —',
+        analyzeBtn: 'Аналізувати',
+        gamesPlayed: 'Ігор',
+        colPlayer: 'Гравець', colJoint: 'Спільних', colTotal: 'Всього в турнірі', colPct: '% зустрічей',
+        seatingYes: '✓ розсадка є', seatingNo: '⏳ розсадки немає',
+        todayLine: '— сьогодні',
+        loadedPlayers: n => `✓ Завантажено ${n} гравців`,
+        noSeating: 'Розсадка ще не готова — дані по іграх відсутні',
+        errPrefix: 'Помилка: ',
+        jointWith: nick => `Спільні ігри: ${nick}`,
+        openLink: name => `🔗 ${name}`,
+        loadingPlayers: 'Завантажую гравців...',
+      }
+    };
+    let lang = 'en';
+    let T = I18N.en;
+
+    function setLang(l) {
+      lang = l; T = I18N[l];
+      document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === l));
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (T[key] && typeof T[key] === 'string') el.textContent = T[key];
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.dataset.i18nPlaceholder;
+        if (T[key]) el.placeholder = T[key];
+      });
+      // Update dynamic select placeholder
+      const sel = document.getElementById('nicknameSelect');
+      if (sel.options[0]) sel.options[0].textContent = T.selectPlaceholder;
+      // Re-render tournaments list if already loaded
+      if (_tournamentData) renderTournaments(_tournamentData);
+    }
+
+    let _tournamentData = null;
+
+    const urlInput = document.getElementById('url');
+    const nicknameInput = document.getElementById('nicknameInput');
+    const nicknameSelect = document.getElementById('nicknameSelect');
+    const status = document.getElementById('status');
+    const btnLoad = document.getElementById('btnLoad');
+    const btnAnalyze = document.getElementById('btnAnalyze');
+
+    function setStatus(msg, isError = false) {
+      status.innerHTML = msg;
+      status.className = isError ? 'error' : '';
+    }
+
+    function getNickname() {
+      return nicknameSelect.style.display !== 'none' && nicknameSelect.value
+        ? nicknameSelect.value
+        : nicknameInput.value.trim();
+    }
+
+    async function loadPlayers() {
+      const url = urlInput.value.trim();
+      if (!url) return;
+      setStatus('<span class="spinner"></span>Загружаю список игроков...');
+      try {
+        const res = await fetch('/api/players?url=' + encodeURIComponent(url));
+        const data = await res.json();
+        if (data.error) { setStatus('⚠️ ' + data.error, true); return; }  // errors come translated from server
+        nicknameSelect.innerHTML = `<option value="">${T.selectPlaceholder}</option>` +
+          data.players.map(p => `<option value="${p}">${p}</option>`).join('');
+        nicknameSelect.style.display = 'block';
+        setStatus(T.loadedPlayers(data.players.length));
+      } catch(e) {
+        setStatus('Ошибка: ' + e.message, true);
+      }
+    }
+
+    async function analyze() {
+      const url = urlInput.value.trim();
+      const nickname = getNickname();
+      if (!url) { setStatus('Введите URL турнира', true); return; }
+      if (!nickname) { setStatus('Введите или выберите никнейм', true); return; }
+      btnAnalyze.disabled = true;
+      setStatus('<span class="spinner"></span>Анализирую турнир...');
+      try {
+        const res = await fetch(`/api/analyze?url=${encodeURIComponent(url)}&nickname=${encodeURIComponent(nickname)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderResults(data);
+        setStatus('');
+      } catch(e) {
+        setStatus('Ошибка: ' + e.message, true);
+      } finally {
+        btnAnalyze.disabled = false;
+      }
+    }
+
+    function renderResults(data) {
+      document.getElementById('resultsTitle').textContent = T.jointWith(data.nickname);
+      const badge = document.getElementById('totalGamesBadge');
+      if (data.total_games > 0) {
+        document.getElementById('totalGames').textContent = data.total_games;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = data.results.map((r, i) => `
+        <tr>
+          <td class="rank">${i + 1}</td>
+          <td class="player-name">${r.player}</td>
+          <td class="joint-count">${r.joint}</td>
+          <td>${r.total}</td>
+          <td>
+            <div class="pct-bar">
+              <div class="bar-bg"><div class="bar-fill" style="width:${r.pct}%"></div></div>
+              <span>${r.pct}%</span>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      document.getElementById('results').style.display = 'block';
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Allow Enter key to trigger analyze
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') analyze();
+    });
+
+    // Load tournaments on page load
+    const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+
+    function renderTournaments(data) {
+      const today = new Date().toISOString().slice(0,10);
+      document.getElementById('dateRange').textContent = `${data.date_from} — ${data.date_to}`;
+      const list = document.getElementById('tournamentsList');
+      if (!data.tournaments.length) {
+        list.innerHTML = '<p style="color:var(--muted);font-size:13px">—</p>';
+        return;
+      }
+      let html = '';
+      let todayShown = false;
+      data.tournaments.forEach(t => {
+        if (!todayShown && t.date >= today) {
+          html += `<div class="today-line">${T.todayLine} ${today} —</div>`;
+          todayShown = true;
+        }
+        const d = new Date(t.date);
+        const day = d.getDate();
+        const month = MONTHS[d.getMonth()];
+        const seatingBadge = t.has_seating
+          ? `<span class="t-badge badge-seating">${T.seatingYes}</span>`
+          : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
+        const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
+        html += `
+          <div class="tournament-item" onclick="selectTournament('${t.url}', '${t.name.replace(/'/g,"\\'")}')">
+            <div class="t-date"><div class="day">${day}</div><div class="month">${month}</div></div>
+            <div class="t-info">
+              <div class="t-name">${t.name} ${t.stars}</div>
+              <div class="t-meta">
+                <span>📍 ${t.city}, ${t.country}</span>
+                <span>👥 ${t.participants}</span>
+                ${seatingBadge}
+                ${onlineBadge}
+              </div>
+            </div>
+          </div>`;
+      });
+      list.innerHTML = html;
+    }
+
+    async function loadTournaments() {
+      try {
+        const res = await fetch('/api/tournaments');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        _tournamentData = data;
+        renderTournaments(data);
+      } catch(e) {
+        document.getElementById('tournamentsList').innerHTML =
+          `<p style="color:var(--red);font-size:13px">${T.errPrefix}${e.message}</p>`;
+      }
+    }
+
+    function selectTournament(url, name) {
+      urlInput.value = url;
+      nicknameSelect.style.display = 'none';
+      nicknameSelect.innerHTML = '<option value="">— Выберите из списка —</option>';
+      nicknameInput.value = '';
+      document.getElementById('analyzeCard').style.display = 'block';
+      const linkEl = document.getElementById('tournamentLink');
+      const linkA = document.getElementById('tournamentLinkA');
+      linkA.href = url;
+      linkA.textContent = `🔗 ${name}`;
+      linkEl.style.display = 'block';
+      setStatus(`<span class="spinner"></span>${T.loadingPlayers}`);
+      loadPlayers();
+      document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    loadTournaments();
+  </script>
+</body>
+</html>
