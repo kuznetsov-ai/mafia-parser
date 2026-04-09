@@ -5,6 +5,9 @@ import json
 import html as html_lib
 from collections import defaultdict
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+TIMEZONE = ZoneInfo('Europe/Nicosia')
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import time
@@ -151,8 +154,7 @@ def index():
 
 @app.route('/api/tournaments')
 def api_tournaments():
-    # Use UTC+3 (Cyprus/Moscow) for tournament dates
-    today = datetime.utcnow() + timedelta(hours=3)
+    today = datetime.now(TIMEZONE)
     date_from = (today - timedelta(days=2)).strftime('%Y-%m-%d')
     date_to = (today + timedelta(days=2)).strftime('%Y-%m-%d')
     cache_key = f'tournaments:{date_from}:{date_to}'
