@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+.env
+*.session
+tournament_data.html
+mafia.py
+firebase.json
+.firebaserc
+main.py
+public/
+runtime.txt
+Procfile
