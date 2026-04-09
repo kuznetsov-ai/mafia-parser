@@ -20,15 +20,16 @@
     /* Tournaments */
     .tournaments-card {
       background: var(--card); border: 1px solid var(--border); border-radius: 16px;
-      padding: 28px; width: 100%; max-width: 640px; margin-bottom: 24px;
+      padding: 28px; width: 100%; max-width: 900px; margin-bottom: 24px;
     }
     .tournaments-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .tournaments-title { font-size: 16px; font-weight: 700; }
     .date-range { font-size: 12px; color: var(--muted); }
     .tournament-item {
       padding: 12px 0; border-bottom: 1px solid #1f1f1f;
-      display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
+      display: flex; align-items: center; gap: 12px; cursor: pointer;
       transition: background .15s; border-radius: 8px; padding: 10px 8px;
+      white-space: nowrap;
     }
     .tournament-item:hover { background: rgba(255,255,255,0.03); }
     .tournament-item:last-child { border-bottom: none; }
@@ -38,9 +39,9 @@
     }
     .t-date .day { font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1; }
     .t-date .month { font-size: 10px; text-transform: uppercase; }
-    .t-info { flex: 1; }
-    .t-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
-    .t-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; }
+    .t-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .t-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .t-badges { display: flex; gap: 6px; flex-shrink: 0; }
     .t-badge {
       font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
     }
@@ -75,7 +76,7 @@
       border-radius: 16px;
       padding: 28px;
       width: 100%;
-      max-width: 640px;
+      max-width: 900px;
       margin-bottom: 24px;
     }
     .field { margin-bottom: 16px; }
@@ -119,7 +120,7 @@
       border-radius: 16px;
       padding: 28px;
       width: 100%;
-      max-width: 640px;
+      max-width: 900px;
       display: none;
     }
     .results-header {
@@ -501,20 +502,17 @@
           : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
         const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
         const sourceBadge = t.source === 'imafia' ? '<span class="t-badge" style="background:rgba(155,89,182,.15);color:#c39;border:1px solid rgba(155,89,182,.3);font-size:10px;padding:1px 6px">iMafia</span>' : '';
-        const location = [t.city, t.country].filter(Boolean).join(', ');
+        const partsBadge = t.participants ? `<span class="t-badge" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);font-size:10px;padding:1px 6px">👥 ${t.participants}</span>` : '';
         html += `
           <div class="tournament-item" onclick="selectTournament('${t.url}', '${t.name.replace(/'/g,"\\'")}')">
             <div class="t-date"><div class="day">${day}</div><div class="month">${month}</div></div>
             <div class="t-info">
-              <div class="t-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
-                <span>${t.name} ${t.stars}</span>
+              <div class="t-name">${t.name} ${t.stars}</div>
+              <div class="t-badges">
                 ${seatingBadge}
-                ${sourceBadge}
-              </div>
-              <div class="t-meta">
-                ${location ? `<span>📍 ${location}</span>` : ''}
-                ${t.participants ? `<span>👥 ${t.participants}</span>` : ''}
                 ${onlineBadge}
+                ${sourceBadge}
+                ${partsBadge}
               </div>
             </div>
           </div>`;
