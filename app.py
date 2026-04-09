@@ -151,7 +151,8 @@ def index():
 
 @app.route('/api/tournaments')
 def api_tournaments():
-    today = datetime.now()
+    # Use UTC+3 (Cyprus/Moscow) for tournament dates
+    today = datetime.utcnow() + timedelta(hours=3)
     date_from = (today - timedelta(days=2)).strftime('%Y-%m-%d')
     date_to = (today + timedelta(days=2)).strftime('%Y-%m-%d')
     cache_key = f'tournaments:{date_from}:{date_to}'
@@ -240,7 +241,7 @@ def api_analyze():
                 results, total = analyze(seats, match)
                 nickname = match
             else:
-                return jsonify({'error': f'Player "{nickname}" not found. Load the player list and select from it.'}), 404
+                return jsonify({'error': f'Player "{nickname}" not found in this tournament.'}), 404
         return jsonify({'results': results, 'total_games': total, 'nickname': nickname})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -248,3 +249,4 @@ def api_analyze():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5055)
+
