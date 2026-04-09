@@ -1,0 +1,15 @@
+name: Daily cache warmup
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 07:00 Cyprus time (UTC+3)
+  workflow_dispatch:      # manual trigger
+
+jobs:
+  warmup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warm up tournaments cache
+        run: |
+          curl -s https://mafia.ekuznetsov.dev/api/tournaments > /dev/null
+          echo "Cache warmed up at $(date)"
