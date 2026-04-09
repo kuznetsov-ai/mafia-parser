@@ -1,0 +1,23 @@
+name: Deploy to Silver Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 89.167.108.210
+          username: root
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /home/mafia-parser
+            git pull
+            docker build -t mafia-parser . -q
+            docker rm -f mafia-parser
+            docker run -d --name mafia-parser --restart unless-stopped -p 8090:8080 mafia-parser
+            echo "Deployed $(date)"
