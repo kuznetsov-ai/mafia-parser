@@ -193,6 +193,15 @@
       margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+  .src-btn {
+    padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all .2s; letter-spacing: .3px;
+  }
+  .src-btn:hover { border-color: var(--accent); color: var(--text); }
+  .src-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .src-btn.imafia-btn.active { background: #c39; border-color: #c39; color: #fff; }
+  .src-btn.imafia-btn:hover:not(.active) { border-color: #c39; color: #c39; }
   .lang-switcher { display:flex; gap:6px; margin-bottom:20px; }
   .lang-btn {
     padding:4px 12px; border-radius:20px; border:1px solid var(--border);
@@ -214,7 +223,15 @@
   <div class="tournaments-card" id="tournamentsBlock">
     <div class="tournaments-header">
       <div class="tournaments-title" data-i18n="tourTitle">Tournaments ±2 days</div>
-      <div class="date-range" id="dateRange"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="date-range" id="dateRange"></div>
+        <button class="lang-btn" id="btnRefresh" onclick="refreshCache()" title="Refresh cache" style="padding:3px 8px;font-size:13px">↻</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;margin-top:4px">
+      <button class="src-btn active" onclick="setSource('all')" id="tab-all" data-i18n="srcAll">All</button>
+      <button class="src-btn" onclick="setSource('mafgame')" id="tab-mafgame">Mafgame</button>
+      <button class="src-btn imafia-btn" onclick="setSource('imafia')" id="tab-imafia">iMafia</button>
     </div>
     <div id="tournamentsList"><div style="color:var(--muted);font-size:13px"><span class="spinner"></span> <span data-i18n="loading">Loading tournaments...</span></div></div>
   </div>
@@ -276,6 +293,7 @@
         jointWith: nick => `Joint games: ${nick}`,
         openLink: name => `🔗 ${name}`,
         loadingPlayers: 'Loading players...',
+        srcAll: 'All', refreshed: '✓ Cache cleared',
       },
       ru: {
         subtitle: 'Анализ совместных игр в турнире',
@@ -289,6 +307,7 @@
         colPlayer: 'Игрок', colJoint: 'Совместных', colTotal: 'Всего в турнире', colPct: '% встреч',
         seatingYes: '✓ рассадка есть', seatingNo: '⏳ рассадки нет',
         todayLine: '— сегодня',
+        srcAll: 'Все', refreshed: '✓ Кэш обновлён',
         loadedPlayers: n => `✓ Загружено ${n} игроков`,
         noSeating: 'Рассадка ещё не готова — данные по играм отсутствуют',
         errPrefix: 'Ошибка: ',
@@ -314,10 +333,12 @@
         jointWith: nick => `Спільні ігри: ${nick}`,
         openLink: name => `🔗 ${name}`,
         loadingPlayers: 'Завантажую гравців...',
+        srcAll: 'Всі', refreshed: '✓ Кеш оновлено',
       }
     };
     let lang = 'en';
     let T = I18N.en;
+    let _source = 'all'; // 'all' | 'mafgame' | 'imafia'
 
     function setLang(l) {
       lang = l; T = I18N[l];
@@ -338,6 +359,27 @@
     }
 
     let _tournamentData = null;
+
+    function setSource(src) {
+      _source = src;
+      ['all','mafgame','imafia'].forEach(s => {
+        document.getElementById('tab-'+s)?.classList.toggle('active', s === src);
+      });
+      if (_tournamentData) renderTournaments(_tournamentData);
+    }
+
+
+    async function refreshCache() {
+      const btn = document.getElementById('btnRefresh');
+      btn.textContent = '...';
+      btn.disabled = true;
+      await fetch('/api/refresh', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
+      _tournamentData = null;
+      document.getElementById('tournamentsList').innerHTML = `<div style="color:var(--muted);font-size:13px"><span class="spinner"></span> ${T.loading}</div>`;
+      await loadTournaments();
+      btn.textContent = '↻';
+      btn.disabled = false;
+    }
 
     const urlInput = document.getElementById('url');
     const nicknameInput = document.getElementById('nicknameInput');
@@ -434,13 +476,19 @@
       const today = new Date().toISOString().slice(0,10);
       document.getElementById('dateRange').textContent = `${data.date_from} — ${data.date_to}`;
       const list = document.getElementById('tournamentsList');
-      if (!data.tournaments.length) {
+
+      // Filter by source
+      let tournaments = data.tournaments;
+      if (_source === 'mafgame') tournaments = tournaments.filter(t => t.url.includes('mafgame.org'));
+      if (_source === 'imafia') tournaments = tournaments.filter(t => t.url.includes('imafia.org'));
+
+      if (!tournaments.length) {
         list.innerHTML = '<p style="color:var(--muted);font-size:13px">—</p>';
         return;
       }
       let html = '';
       let todayShown = false;
-      data.tournaments.forEach(t => {
+      tournaments.forEach(t => {
         if (!todayShown && t.date >= today) {
           html += `<div class="today-line">${T.todayLine} ${today} —</div>`;
           todayShown = true;
@@ -452,15 +500,20 @@
           ? `<span class="t-badge badge-seating">${T.seatingYes}</span>`
           : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
         const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
+        const sourceBadge = t.source === 'imafia' ? '<span class="t-badge" style="background:rgba(155,89,182,.15);color:#c39;border:1px solid rgba(155,89,182,.3);font-size:10px;padding:1px 6px">iMafia</span>' : '';
+        const location = [t.city, t.country].filter(Boolean).join(', ');
         html += `
           <div class="tournament-item" onclick="selectTournament('${t.url}', '${t.name.replace(/'/g,"\\'")}')">
             <div class="t-date"><div class="day">${day}</div><div class="month">${month}</div></div>
             <div class="t-info">
-              <div class="t-name">${t.name} ${t.stars}</div>
-              <div class="t-meta">
-                <span>📍 ${t.city}, ${t.country}</span>
-                <span>👥 ${t.participants}</span>
+              <div class="t-name" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+                <span>${t.name} ${t.stars}</span>
                 ${seatingBadge}
+                ${sourceBadge}
+              </div>
+              <div class="t-meta">
+                ${location ? `<span>📍 ${location}</span>` : ''}
+                ${t.participants ? `<span>👥 ${t.participants}</span>` : ''}
                 ${onlineBadge}
               </div>
             </div>

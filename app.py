@@ -36,6 +36,213 @@ def cache_set(key, val):
         _cache[key] = {'val': val, 'ts': time.time()}
 
 
+def cache_bust(url):
+    """Remove a specific URL from cache."""
+    with _cache_lock:
+        keys_to_delete = [k for k in _cache if url in k]
+        for k in keys_to_delete:
+            del _cache[k]
+
+
+# ── imafia.org parser ──────────────────────────────────────────────────────
+
+def _is_game_table(rows):
+    """Check if a table is a game seating table (4 cols, digit seat, player name).
+    Legacy: only used for old-format imafia pages that still use <table> for games.
+    """
+    if len(rows) < 2:
+        return False
+    header_cells = rows[0].find_all(['td', 'th'])
+    header_text = ' '.join(c.get_text(strip=True) for c in header_cells)
+    if 'Гравець' in header_text or ('Б' in header_text and 'Ci' in header_text):
+        return False
+    valid_rows = 0
+    for row in rows:
+        cells = row.find_all('td')
+        if len(cells) != 4:
+            continue
+        seat = cells[0].get_text(strip=True)
+        player = cells[2].get_text(strip=True)
+        if seat.isdigit() and int(seat) <= 15 and re.search(r'[A-Za-zА-Яа-яёЁіІїЇєЄ]', player):
+            valid_rows += 1
+    return valid_rows >= 2
+
+
+def _extract_nick(raw):
+    """Extract nickname from 'Nick(Real Name)' format."""
+    m = re.match(r'^([^(]+)', raw)
+    return m.group(1).strip() if m else raw.strip()
+
+
+def fetch_imafia_tournaments(date_from, date_to):
+    """Fetch imafia.org tournament list filtered by date range."""
+    from bs4 import BeautifulSoup
+
+    cache_key = f'imafia_list:{date_from}:{date_to}'
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        r = SESSION.get('https://imafia.org/tournaments', timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, 'html.parser')
+    except Exception:
+        return []
+
+    results = []
+    links = [l for l in soup.find_all('a', href=True) if '/tournament/' in l.get('href', '')]
+
+    for l in links:
+        text = l.get_text(separator=' ', strip=True)
+        # Date format: dd.mm.yy — use word boundary to avoid grabbing price digits
+        m = re.match(r'(\d{2})\.(\d{2})\.(\d{2})\b', text)
+        if not m:
+            continue
+        day, month, year = m.groups()
+        year = f'20{year}' if len(year) == 2 else year
+        date_str = f'{year}-{month}-{day}'
+
+        if not (date_from <= date_str <= date_to):
+            continue
+
+        tid = l['href'].split('/')[-1]
+        url = f'https://imafia.org/tournament/{tid}'
+
+        # Get proper name from tournament page h1 (uses the imafia cache)
+        name = _imafia_get_name(url) or f'iMafia #{tid}'
+
+        seating = has_imafia_seating(url)
+
+        results.append({
+            'id': tid,
+            'name': name or f'iMafia #{tid}',
+            'city': '',
+            'country': '',
+            'date': date_str,
+            'stars': '',
+            'online': 'online' in text.lower(),
+            'participants': 0,
+            'has_seating': seating,
+            'url': url,
+            'source': 'imafia',
+        })
+
+    cache_set(cache_key, results)
+    return results
+
+
+def _imafia_get_name(url):
+    """Get tournament name from imafia page (uses cached page data)."""
+    try:
+        from bs4 import BeautifulSoup
+        cache_key = f'imafia_name:{url}'
+        cached = cache_get(cache_key)
+        if cached:
+            return cached
+        r = SESSION.get(url, timeout=10)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        h1 = soup.find('h1')
+        name = h1.get_text(strip=True).replace('share', '').strip() if h1 else ''
+        cache_set(cache_key, name)
+        return name
+    except Exception:
+        return ''
+
+
+def has_imafia_seating(url):
+    """Check if imafia tournament has seating data."""
+    cache_key = f'imafia_seating:{url}'
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        data = fetch_imafia(url)
+        result = len(data.get('game_tables', [])) > 0
+    except Exception:
+        result = False
+    cache_set(cache_key, result)
+    return result
+
+
+def fetch_imafia(url):
+    """Fetch imafia.org tournament page and return game_tables.
+
+    game_tables: list of lists — each inner list is players at one game table.
+    Games are parsed from div.games_item elements (not <table>).
+    """
+    from bs4 import BeautifulSoup
+
+    cache_key = f'imafia:{url}'
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    r = SESSION.get(url, timeout=15)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, 'html.parser')
+
+    game_tables = []
+
+    # imafia uses div-based layout for games, not <table>
+    results_section = soup.find('div', id='tournament-results')
+    if results_section:
+        game_items = results_section.find_all(
+            'div', class_=lambda c: c and 'games_item_js' in c.split())
+        for gi in game_items:
+            content = gi.find('div', class_='games_item_content')
+            if not content:
+                continue
+            players_in_game = []
+            rows = content.find_all(
+                'div', class_=lambda c: c and 'games_item_tr' in c.split(),
+                recursive=False)
+            for row in rows:
+                tds = row.find_all('div', class_='games_item_td', recursive=False)
+                # Structure: [#seat, role_icon, score, player_name, link, best_move]
+                if len(tds) >= 4:
+                    nick = tds[3].get_text(strip=True)
+                    if nick:
+                        players_in_game.append(nick)
+            if players_in_game:
+                game_tables.append(players_in_game)
+
+    result = {'game_tables': game_tables}
+    cache_set(cache_key, result)
+    return result
+
+
+def imafia_get_players(data):
+    """Get all unique players from imafia game tables."""
+    players = set()
+    for table in data['game_tables']:
+        players.update(table)
+    return sorted(players)
+
+
+def imafia_analyze(data, target_nickname):
+    """Count joint games for target player from imafia data."""
+    joint_games = defaultdict(int)
+    player_games = defaultdict(int)
+    target_games = 0
+
+    for players in data['game_tables']:
+        for p in players:
+            player_games[p] += 1
+        if target_nickname in players:
+            target_games += 1
+            for p in players:
+                if p != target_nickname:
+                    joint_games[p] += 1
+
+    results = [
+        {'player': p, 'joint': c, 'total': player_games[p],
+         'pct': round(c / target_games * 100) if target_games else 0}
+        for p, c in sorted(joint_games.items(), key=lambda x: x[1], reverse=True)
+    ]
+    return results, target_games
+
+
 def get_inertia_data(url):
     """Fetch Inertia.js page data from mafgame.org."""
     cache_key = f'inertia:{url}'
@@ -202,11 +409,31 @@ def api_tournaments():
 
         result.sort(key=lambda t: t['date'])
 
+        # Add source tag for mafgame tournaments
+        for t in result:
+            t['source'] = 'mafgame'
+
+        # Merge imafia tournaments
+        try:
+            imafia_tournaments = fetch_imafia_tournaments(date_from, date_to)
+            result.extend(imafia_tournaments)
+        except Exception:
+            pass  # Don't fail if imafia is unavailable
+
+        result.sort(key=lambda t: t['date'])
+
         payload = {'tournaments': result, 'date_from': date_from, 'date_to': date_to}
         cache_set(cache_key, payload)
         return jsonify(payload)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def _detect_site(url):
+    """Detect which site the URL belongs to."""
+    if 'imafia.org' in url:
+        return 'imafia'
+    return 'mafgame'
 
 
 @app.route('/api/players')
@@ -215,11 +442,17 @@ def api_players():
     if not url:
         return jsonify({'error': 'URL is required'}), 400
     try:
-        props = get_inertia_data(url)
-        seats = parse_seats(props)
-        if not seats:
-            return jsonify({'error': 'Seating not ready — no game data available yet'}), 404
-        players = get_all_players(seats)
+        if _detect_site(url) == 'imafia':
+            data = fetch_imafia(url)
+            players = imafia_get_players(data)
+            if not players:
+                return jsonify({'error': 'Seating not ready — no game data available yet'}), 404
+        else:
+            props = get_inertia_data(url)
+            seats = parse_seats(props)
+            if not seats:
+                return jsonify({'error': 'Seating not ready — no game data available yet'}), 404
+            players = get_all_players(seats)
         return jsonify({'players': players})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -232,21 +465,43 @@ def api_analyze():
     if not url or not nickname:
         return jsonify({'error': 'URL and nickname are required'}), 400
     try:
-        props = get_inertia_data(url)
-        seats = parse_seats(props)
-        results, total = analyze(seats, nickname)
-        if not results:
+        if _detect_site(url) == 'imafia':
+            data = fetch_imafia(url)
+            players = imafia_get_players(data)
+            results, total = imafia_analyze(data, nickname)
+        else:
+            props = get_inertia_data(url)
+            seats = parse_seats(props)
             players = get_all_players(seats)
+            results, total = analyze(seats, nickname)
+
+        if not results:
             # Fallback: case-insensitive match
             match = next((p for p in players if p.lower() == nickname.lower()), None)
             if match:
-                results, total = analyze(seats, match)
+                if _detect_site(url) == 'imafia':
+                    results, total = imafia_analyze(data, match)
+                else:
+                    results, total = analyze(seats, match)
                 nickname = match
             else:
                 return jsonify({'error': f'Player "{nickname}" not found in this tournament.'}), 404
         return jsonify({'results': results, 'total_games': total, 'nickname': nickname})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/refresh', methods=['POST'])
+def api_refresh():
+    """Force clear cache for a specific tournament URL."""
+    url = request.json.get('url', '').strip() if request.json else ''
+    if url:
+        cache_bust(url)
+    else:
+        # Clear all cache
+        with _cache_lock:
+            _cache.clear()
+    return jsonify({'ok': True})
 
 
 if __name__ == '__main__':
