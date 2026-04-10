@@ -114,6 +114,10 @@ def fetch_imafia_tournaments(date_from, date_to):
 
         seating = has_imafia_seating(url)
 
+        # Extract level from level image title (Silver, Gold, Platinum)
+        level_img = l.find('img', class_='tournaments_item_level_img')
+        level = level_img.get('title', '') if level_img else ''
+
         results.append({
             'id': tid,
             'name': name or f'iMafia #{tid}',
@@ -121,6 +125,7 @@ def fetch_imafia_tournaments(date_from, date_to):
             'country': '',
             'date': date_str,
             'stars': '',
+            'level': level,
             'online': 'online' in text.lower(),
             'participants': 0,
             'has_seating': seating,

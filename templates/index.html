@@ -64,7 +64,7 @@
       font-weight: 800;
       letter-spacing: 3px;
       text-transform: uppercase;
-      background: linear-gradient(135deg, var(--text), var(--accent));
+      background: linear-gradient(135deg, var(--accent), #c39);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       margin-bottom: 8px;
@@ -213,7 +213,7 @@
 </head>
 <body>
   <h1>MAFIA</h1>
-  <p class="subtitle" data-i18n="subtitle">Анализ совместных игр в турнире</p>
+  <p class="subtitle" data-i18n="subtitle">Joint game analysis in tournament</p>
   <div class="lang-switcher">
     <button class="lang-btn active" onclick="setLang('en')">EN</button>
     <button class="lang-btn" onclick="setLang('ru')">RU</button>
@@ -295,6 +295,7 @@
         openLink: name => `🔗 ${name}`,
         loadingPlayers: 'Loading players...',
         srcAll: 'All', refreshed: '✓ Cache cleared',
+        months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
       },
       ru: {
         subtitle: 'Анализ совместных игр в турнире',
@@ -309,6 +310,7 @@
         seatingYes: '✓ рассадка есть', seatingNo: '⏳ рассадки нет',
         todayLine: '— сегодня',
         srcAll: 'Все', refreshed: '✓ Кэш обновлён',
+        months: ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'],
         loadedPlayers: n => `✓ Загружено ${n} игроков`,
         noSeating: 'Рассадка ещё не готова — данные по играм отсутствуют',
         errPrefix: 'Ошибка: ',
@@ -335,6 +337,7 @@
         openLink: name => `🔗 ${name}`,
         loadingPlayers: 'Завантажую гравців...',
         srcAll: 'Всі', refreshed: '✓ Кеш оновлено',
+        months: ['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'],
       }
     };
     let lang = 'en';
@@ -471,7 +474,7 @@
     });
 
     // Load tournaments on page load
-    const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    // Months are localized via T.months
 
     function renderTournaments(data) {
       const today = new Date().toISOString().slice(0,10);
@@ -496,18 +499,24 @@
         }
         const d = new Date(t.date);
         const day = d.getDate();
-        const month = MONTHS[d.getMonth()];
+        const month = T.months[d.getMonth()];
         const seatingBadge = t.has_seating
           ? `<span class="t-badge badge-seating">${T.seatingYes}</span>`
           : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
         const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
-        const sourceBadge = t.source === 'imafia' ? '<span class="t-badge" style="background:rgba(155,89,182,.15);color:#c39;border:1px solid rgba(155,89,182,.3);font-size:10px;padding:1px 6px">iMafia</span>' : '';
+        const sourceBadge = t.source === 'imafia'
+          ? '<span class="t-badge" style="background:rgba(155,89,182,.15);color:#c39;border:1px solid rgba(155,89,182,.3);font-size:10px;padding:1px 6px">iMafia</span>'
+          : '<span class="t-badge" style="background:rgba(52,152,219,.1);color:#5bc;border:1px solid rgba(52,152,219,.25);font-size:10px;padding:1px 6px">Mafgame</span>';
         const partsBadge = t.participants ? `<span class="t-badge" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);font-size:10px;padding:1px 6px">👥 ${t.participants}</span>` : '';
+        const levelColors = {Platinum:'#a0c4ff',Gold:'#ffd700',Silver:'#c0c0c0',Bronze:'#cd7f32'};
+        const levelIcon = {Platinum:'💎',Gold:'🥇',Silver:'🥈',Bronze:'🥉'};
+        const levelInline = t.level ? `<span style="color:${levelColors[t.level]||'var(--muted)'};font-size:13px">${levelIcon[t.level]||''} ${t.level}</span>` : '';
+        const starsOrLevel = t.stars || levelInline;
         html += `
           <div class="tournament-item" onclick="selectTournament('${t.url}', '${t.name.replace(/'/g,"\\'")}')">
             <div class="t-date"><div class="day">${day}</div><div class="month">${month}</div></div>
             <div class="t-info">
-              <div class="t-name">${t.name} ${t.stars}</div>
+              <div class="t-name">${t.name} ${starsOrLevel}</div>
               <div class="t-badges">
                 ${seatingBadge}
                 ${onlineBadge}
