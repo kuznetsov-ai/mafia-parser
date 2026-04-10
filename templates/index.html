@@ -48,6 +48,14 @@
     .badge-seating { background: rgba(46,204,113,0.15); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
     .badge-no-seating { background: rgba(231,76,60,0.12); color: #e88; border: 1px solid rgba(231,76,60,0.25); }
     .badge-online { background: rgba(52,152,219,0.15); color: #5bc; border: 1px solid rgba(52,152,219,0.3); }
+    .badge-mafgame { background: rgba(52,152,219,0.1); color: #5bc; border: 1px solid rgba(52,152,219,0.25); font-size: 10px; padding: 1px 6px; }
+    .badge-imafia { background: rgba(155,89,182,0.15); color: #c39; border: 1px solid rgba(155,89,182,0.3); font-size: 10px; padding: 1px 6px; }
+    .badge-participants { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border); font-size: 10px; padding: 1px 6px; }
+    .level-inline { font-size: 13px; }
+    .level-platinum { color: #a0c4ff; }
+    .level-gold { color: #ffd700; }
+    .level-silver { color: #c0c0c0; }
+    .level-bronze { color: #cd7f32; }
     .today-line { text-align: center; font-size: 11px; color: var(--accent); margin: 8px 0; letter-spacing: 1px; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -412,7 +420,7 @@
         const data = await res.json();
         if (data.error) { setStatus('⚠️ ' + data.error, true); return; }  // errors come translated from server
         nicknameSelect.innerHTML = `<option value="">${T.selectPlaceholder}</option>` +
-          data.players.map(p => `<option value="${p}">${p}</option>`).join('');
+          data.players.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
         nicknameSelect.style.display = 'block';
         setStatus(T.loadedPlayers(data.players.length));
       } catch(e) {
@@ -453,7 +461,7 @@
       tbody.innerHTML = data.results.map((r, i) => `
         <tr>
           <td class="rank">${i + 1}</td>
-          <td class="player-name">${r.player}</td>
+          <td class="player-name">${esc(r.player)}</td>
           <td class="joint-count">${r.joint}</td>
           <td>${r.total}</td>
           <td>
@@ -474,14 +482,15 @@
     });
 
     // Load tournaments on page load
-    // Months are localized via T.months
+    const LEVEL_ICON = {Platinum:'💎',Gold:'🥇',Silver:'🥈',Bronze:'🥉'};
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     function renderTournaments(data) {
       const today = new Date().toISOString().slice(0,10);
       document.getElementById('dateRange').textContent = `${data.date_from} — ${data.date_to}`;
       const list = document.getElementById('tournamentsList');
 
-      // Filter by source
       let tournaments = data.tournaments;
       if (_source === 'mafgame') tournaments = tournaments.filter(t => t.url.includes('mafgame.org'));
       if (_source === 'imafia') tournaments = tournaments.filter(t => t.url.includes('imafia.org'));
@@ -505,18 +514,17 @@
           : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
         const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
         const sourceBadge = t.source === 'imafia'
-          ? '<span class="t-badge" style="background:rgba(155,89,182,.15);color:#c39;border:1px solid rgba(155,89,182,.3);font-size:10px;padding:1px 6px">iMafia</span>'
-          : '<span class="t-badge" style="background:rgba(52,152,219,.1);color:#5bc;border:1px solid rgba(52,152,219,.25);font-size:10px;padding:1px 6px">Mafgame</span>';
-        const partsBadge = t.participants ? `<span class="t-badge" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);font-size:10px;padding:1px 6px">👥 ${t.participants}</span>` : '';
-        const levelColors = {Platinum:'#a0c4ff',Gold:'#ffd700',Silver:'#c0c0c0',Bronze:'#cd7f32'};
-        const levelIcon = {Platinum:'💎',Gold:'🥇',Silver:'🥈',Bronze:'🥉'};
-        const levelInline = t.level ? `<span style="color:${levelColors[t.level]||'var(--muted)'};font-size:13px">${levelIcon[t.level]||''} ${t.level}</span>` : '';
-        const starsOrLevel = t.stars || levelInline;
+          ? '<span class="t-badge badge-imafia">iMafia</span>'
+          : '<span class="t-badge badge-mafgame">Mafgame</span>';
+        const partsBadge = t.participants ? `<span class="t-badge badge-participants">👥 ${t.participants}</span>` : '';
+        const lvl = t.level ? `<span class="level-inline level-${t.level.toLowerCase()}">${LEVEL_ICON[t.level]||''} ${esc(t.level)}</span>` : '';
+        const starsOrLevel = t.stars || lvl;
+        const safeName = esc(t.name);
         html += `
-          <div class="tournament-item" onclick="selectTournament('${t.url}', '${t.name.replace(/'/g,"\\'")}')">
+          <div class="tournament-item" data-url="${esc(t.url)}" data-name="${safeName}">
             <div class="t-date"><div class="day">${day}</div><div class="month">${month}</div></div>
             <div class="t-info">
-              <div class="t-name">${t.name} ${starsOrLevel}</div>
+              <div class="t-name">${safeName} ${starsOrLevel}</div>
               <div class="t-badges">
                 ${seatingBadge}
                 ${onlineBadge}
@@ -541,6 +549,12 @@
           `<p style="color:var(--red);font-size:13px">${T.errPrefix}${e.message}</p>`;
       }
     }
+
+    // Event delegation for tournament clicks (XSS-safe, no inline onclick)
+    document.getElementById('tournamentsList').addEventListener('click', function(e) {
+      const item = e.target.closest('.tournament-item');
+      if (item) selectTournament(item.dataset.url, item.dataset.name);
+    });
 
     function selectTournament(url, name) {
       urlInput.value = url;
