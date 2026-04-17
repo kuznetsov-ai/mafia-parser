@@ -357,9 +357,13 @@ def api_tournaments():
     cached = cache_get(cache_key)
     if cached:
         return jsonify(cached)
+
+    result = []
+    errors = {}
+
+    # Fetch mafgame — isolated so a failure doesn't block imafia
     try:
         version = get_inertia_version()
-        # Single request — mafgame.org API filters by date range server-side
         r = SESSION.get('https://mafgame.org/tournaments',
             headers={'X-Inertia': 'true', 'X-Inertia-Version': version, 'Accept': 'application/json'},
             params={'date_from': date_from, 'date_to': date_to, 'per_page': 100},
@@ -368,13 +372,10 @@ def api_tournaments():
         results = r.json().get('props', {}).get('search_results', {})
         all_tournaments = results.get('data', [])
 
-        # Strict date filter in case API returns extra results
         all_tournaments = [t for t in all_tournaments
                            if date_from <= t.get('start_date', '') <= date_to]
-
         all_tournaments.sort(key=lambda t: t.get('start_date', ''))
 
-        # Check seating for each tournament in parallel
         def check_t(t):
             seating = has_seating(t['id'])
             return {
@@ -388,34 +389,34 @@ def api_tournaments():
                 'participants': t.get('expected_participants', 0),
                 'has_seating': seating,
                 'url': f"https://mafgame.org/tournaments/{t['id']}/view",
+                'source': 'mafgame',
             }
 
-        result = []
+        mafgame_result = []
         with ThreadPoolExecutor(max_workers=8) as executor:
             futures = {executor.submit(check_t, t): t for t in all_tournaments}
             for future in as_completed(futures):
-                result.append(future.result())
-
-        result.sort(key=lambda t: t['date'])
-
-        # Add source tag for mafgame tournaments
-        for t in result:
-            t['source'] = 'mafgame'
-
-        # Merge imafia tournaments
-        try:
-            imafia_tournaments = fetch_imafia_tournaments(date_from, date_to)
-            result.extend(imafia_tournaments)
-        except Exception:
-            pass  # Don't fail if imafia is unavailable
-
-        result.sort(key=lambda t: t['date'])
-
-        payload = {'tournaments': result, 'date_from': date_from, 'date_to': date_to}
-        cache_set(cache_key, payload)
-        return jsonify(payload)
+                mafgame_result.append(future.result())
+        result.extend(mafgame_result)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        errors['mafgame'] = str(e)
+
+    # Fetch imafia — independent of mafgame
+    try:
+        imafia_tournaments = fetch_imafia_tournaments(date_from, date_to)
+        result.extend(imafia_tournaments)
+    except Exception as e:
+        errors['imafia'] = str(e)
+
+    if not result and errors:
+        return jsonify({'error': 'All sources failed', 'details': errors}), 503
+
+    result.sort(key=lambda t: t['date'])
+    payload = {'tournaments': result, 'date_from': date_from, 'date_to': date_to}
+    if errors:
+        payload['warnings'] = errors
+    cache_set(cache_key, payload)
+    return jsonify(payload)
 
 
 def _detect_site(url):
