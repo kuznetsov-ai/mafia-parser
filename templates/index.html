@@ -48,18 +48,7 @@
     .badge-seating { background: rgba(46,204,113,0.15); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
     .badge-no-seating { background: rgba(231,76,60,0.12); color: #e88; border: 1px solid rgba(231,76,60,0.25); }
     .badge-icon-only { display: none; }
-    @media (max-width: 600px) {
-      body { padding: 16px 8px; }
-      h1 { font-size: 22px; letter-spacing: 2px; }
-      .tournaments-card, .card, .results-card { padding: 16px; }
-      .badge-seating .badge-text-full, .badge-no-seating .badge-text-full { display: none; }
-      .badge-seating .badge-icon-only, .badge-no-seating .badge-icon-only { display: inline; }
-      thead th, tbody td { padding: 6px 4px; font-size: 12px; }
-      thead th:first-child, tbody td:first-child { display: none; }
-      .bar-bg { width: 36px; }
-      .pct-bar { gap: 4px; }
-      .player-name { font-size: 12px; }
-    }
+    .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .badge-online { background: rgba(52,152,219,0.15); color: #5bc; border: 1px solid rgba(52,152,219,0.3); }
     .badge-mafgame { background: rgba(52,152,219,0.1); color: #5bc; border: 1px solid rgba(52,152,219,0.25); font-size: 10px; padding: 1px 6px; }
     .badge-imafia { background: rgba(155,89,182,0.15); color: #c39; border: 1px solid rgba(155,89,182,0.3); font-size: 10px; padding: 1px 6px; }
@@ -230,6 +219,22 @@
     background:transparent; color:var(--muted); font-size:12px; cursor:pointer; transition:all .2s;
   }
   .lang-btn.active { background:var(--accent); color:#000; border-color:var(--accent); font-weight:600; }
+
+  @media (max-width: 600px) {
+    body { padding: 16px 8px; }
+    h1 { font-size: 22px; letter-spacing: 2px; }
+    .tournaments-card, .card, .results-card { padding: 14px 10px; }
+    .badge-seating .badge-text-full, .badge-no-seating .badge-text-full { display: none; }
+    .badge-seating .badge-icon-only, .badge-no-seating .badge-icon-only { display: inline; }
+    thead th { padding: 6px 2px; font-size: 10px; white-space: normal; }
+    tbody td { padding: 6px 2px; font-size: 12px; }
+    thead th:first-child, tbody td:first-child { display: none; }
+    .bar-bg { width: 28px; }
+    .pct-bar { gap: 4px; }
+    .player-name { font-size: 12px; }
+    .results-header { flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .results-title { font-size: 14px; }
+  }
   </style>
 </head>
 <body>
@@ -281,18 +286,20 @@
       <div class="results-title" id="resultsTitle"></div>
       <div class="badge" id="totalGamesBadge"><span data-i18n="gamesPlayed">Games</span>: <span id="totalGames">0</span></div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th data-i18n="colPlayer">Player</th>
-          <th data-i18n="colJoint">Joint</th>
-          <th data-i18n="colTotal">Total in tournament</th>
-          <th data-i18n="colPct">% meetings</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th data-i18n="colPlayer">Player</th>
+            <th data-i18n="colJoint">Joint</th>
+            <th data-i18n="colTotal">Total</th>
+            <th data-i18n="colPct">% meetings</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
@@ -306,7 +313,7 @@
         selectPlaceholder: '— Select nickname from list —',
         analyzeBtn: 'Analyze',
         gamesPlayed: 'Games',
-        colPlayer: 'Player', colJoint: 'Joint', colTotal: 'Total in tournament', colPct: '% meetings',
+        colPlayer: 'Player', colJoint: 'Joint', colTotal: 'Total', colPct: '% meetings',
         seatingYes: '✓ seating ready', seatingNo: '⏳ no seating',
         todayLine: '— today',
         loadedPlayers: n => `✓ Loaded ${n} players`,
@@ -327,7 +334,7 @@
         selectPlaceholder: '— Выберите никнейм из списка —',
         analyzeBtn: 'Анализировать',
         gamesPlayed: 'Игр',
-        colPlayer: 'Игрок', colJoint: 'Совместных', colTotal: 'Всего в турнире', colPct: '% встреч',
+        colPlayer: 'Игрок', colJoint: 'Совместных', colTotal: 'Всего', colPct: '% встреч',
         seatingYes: '✓ рассадка есть', seatingNo: '⏳ рассадки нет',
         todayLine: '— сегодня',
         srcAll: 'Все', refreshed: '✓ Кэш обновлён',
@@ -348,7 +355,7 @@
         selectPlaceholder: '— Оберіть нікнейм зі списку —',
         analyzeBtn: 'Аналізувати',
         gamesPlayed: 'Ігор',
-        colPlayer: 'Гравець', colJoint: 'Спільних', colTotal: 'Всього в турнірі', colPct: '% зустрічей',
+        colPlayer: 'Гравець', colJoint: 'Спільних', colTotal: 'Всього', colPct: '% зустрічей',
         seatingYes: '✓ розсадка є', seatingNo: '⏳ розсадки немає',
         todayLine: '— сьогодні',
         loadedPlayers: n => `✓ Завантажено ${n} гравців`,
@@ -372,6 +379,11 @@
         const key = el.dataset.i18n;
         if (T[key] && typeof T[key] === 'string') el.textContent = T[key];
       });
+      // Mobile: shorten wide column headers to keep table within viewport
+      if (window.innerWidth <= 600) {
+        const pctTh = document.querySelector('th[data-i18n="colPct"]');
+        if (pctTh) pctTh.textContent = '%';
+      }
       document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.dataset.i18nPlaceholder;
         if (T[key]) el.placeholder = T[key];
@@ -584,6 +596,12 @@
       setStatus(`<span class="spinner"></span>${T.loadingPlayers}`);
       loadPlayers();
       document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Mobile: shorten wide column headers to keep results table within viewport
+    if (window.innerWidth <= 600) {
+      const pctTh = document.querySelector('th[data-i18n="colPct"]');
+      if (pctTh) pctTh.textContent = '%';
     }
 
     loadTournaments();

@@ -23,6 +23,16 @@ Added `@media (max-width: 600px)` styles:
 
 Tournaments whose name contains "cancelled" / "canceled" (case-insensitive) are now filtered out client-side in `renderTournaments()`.
 
+### Follow-up fix (same day)
+
+On iPhone widths (375/393px), the results table was still wider than the card and its right column was clipped. Fixes:
+- Wrapped `<table>` in a `.table-scroll` div (overflow-x: auto) so only the table scrolls if content exceeds.
+- Moved the `@media (max-width: 600px)` block to the end of the stylesheet so `.bar-bg { width: 28px; }` actually overrides the default 60px.
+- Shortened the `colTotal` translation to "Total" / "Всего" / "Всього" (was "Total in tournament" / "Всего в турнире" / "Всього в турнірі").
+- Mobile-only JS tweak shortens the `% meetings` header to `%` on ≤600px viewports to free horizontal space.
+
+Verified at 375/393/430px: `docW == innerWidth`, all columns visible with bar + value (e.g. `58%`).
+
 ### Tests
 
 Added 3 new Titan scenarios and desktop+mobile dual-viewport runner:
