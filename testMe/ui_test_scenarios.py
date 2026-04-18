@@ -438,6 +438,110 @@ class MafiaParserScenarios(BaseScenario):
             self._record("manual_nickname", "FAIL", str(e), screenshot, start)
         return self.results[-1]
 
+    # ── S13: No horizontal overflow ────────────────────────────────────
+    async def test_no_horizontal_overflow(self):
+        """S13: Page does not overflow horizontally at current viewport."""
+        start = await self._step("no_horizontal_overflow")
+        try:
+            await self.page.goto(self.base_url, wait_until="networkidle")
+            await self.page.wait_for_selector(SEL["tournament_item"], timeout=30000)
+            sizes = await self.page.evaluate(
+                "() => ({docW: document.documentElement.scrollWidth, vp: window.innerWidth})"
+            )
+            # Also check after clicking seating tournament + analyze (fuller layout)
+            seating = self.page.locator(f'{SEL["tournament_item"]}:has({SEL["badge_seating"]})')
+            if await seating.count() > 0:
+                await seating.first.click()
+                await asyncio.sleep(1)
+                try:
+                    await self.page.wait_for_function(
+                        "document.querySelector('#nicknameSelect').options.length > 1", timeout=20000)
+                    await self.page.select_option(SEL["nickname_select"], index=1)
+                    await self.page.click(SEL["btn_analyze"])
+                    await self.page.wait_for_selector(SEL["results_card"], state="visible", timeout=30000)
+                    await asyncio.sleep(1)
+                except Exception:
+                    pass
+            sizes_after = await self.page.evaluate(
+                "() => ({docW: document.documentElement.scrollWidth, vp: window.innerWidth})"
+            )
+            screenshot = await self._screenshot("13_overflow")
+            ok_before = sizes["docW"] <= sizes["vp"] + 2
+            ok_after = sizes_after["docW"] <= sizes_after["vp"] + 2
+            if ok_before and ok_after:
+                self._record("no_horizontal_overflow", "PASS",
+                             f"docW={sizes_after['docW']} vp={sizes_after['vp']}", screenshot, start)
+            else:
+                self._record("no_horizontal_overflow", "FAIL",
+                             f"Overflow: before={sizes}, after={sizes_after}", screenshot, start)
+        except Exception as e:
+            screenshot = await self._screenshot("13_error")
+            self._record("no_horizontal_overflow", "FAIL", str(e), screenshot, start)
+        return self.results[-1]
+
+    # ── S14: Mobile seating badge is icon-only ─────────────────────────
+    async def test_seating_badge_responsive(self):
+        """S14: Seating badge shows icon-only on mobile (≤600px), full text on desktop."""
+        start = await self._step("seating_badge_responsive")
+        try:
+            await self.page.goto(self.base_url, wait_until="networkidle")
+            await self.page.wait_for_selector(SEL["tournament_item"], timeout=30000)
+            vp_w = await self.page.evaluate("() => window.innerWidth")
+            visibility = await self.page.evaluate("""() => {
+              const badge = document.querySelector('.badge-seating');
+              if (!badge) return {found: false};
+              const txt = badge.querySelector('.badge-text-full');
+              const ico = badge.querySelector('.badge-icon-only');
+              return {
+                found: true,
+                text_display: txt ? getComputedStyle(txt).display : 'none',
+                icon_display: ico ? getComputedStyle(ico).display : 'none',
+                text_content: txt ? txt.innerText : '',
+                icon_content: ico ? ico.innerText : '',
+              };
+            }""")
+            screenshot = await self._screenshot("14_seating_badge")
+            if not visibility.get("found"):
+                self._record("seating_badge_responsive", "WARN", "No seating badge present", screenshot, start)
+                return self.results[-1]
+            is_mobile = vp_w <= 600
+            if is_mobile:
+                ok = visibility["text_display"] == "none" and visibility["icon_display"] != "none"
+            else:
+                ok = visibility["text_display"] != "none"
+            if ok:
+                self._record("seating_badge_responsive", "PASS",
+                             f"vp={vp_w}, text={visibility['text_display']}, icon={visibility['icon_display']}",
+                             screenshot, start)
+            else:
+                self._record("seating_badge_responsive", "FAIL",
+                             f"vp={vp_w}, visibility={visibility}", screenshot, start)
+        except Exception as e:
+            screenshot = await self._screenshot("14_error")
+            self._record("seating_badge_responsive", "FAIL", str(e), screenshot, start)
+        return self.results[-1]
+
+    # ── S15: Cancelled tournaments are hidden ──────────────────────────
+    async def test_no_cancelled_tournaments(self):
+        """S15: Tournaments with 'cancelled' in the name are filtered out."""
+        start = await self._step("no_cancelled_tournaments")
+        try:
+            await self.page.goto(self.base_url, wait_until="networkidle")
+            await self.page.wait_for_selector(SEL["tournament_item"], timeout=30000)
+            names = await self.page.locator(SEL["t_name"]).all_inner_texts()
+            cancelled = [n for n in names if re.search(r"cancell?ed", n, re.IGNORECASE)]
+            screenshot = await self._screenshot("15_cancelled")
+            if not cancelled:
+                self._record("no_cancelled_tournaments", "PASS",
+                             f"No cancelled in {len(names)} tournaments", screenshot, start)
+            else:
+                self._record("no_cancelled_tournaments", "FAIL",
+                             f"Cancelled still visible: {cancelled}", screenshot, start)
+        except Exception as e:
+            screenshot = await self._screenshot("15_error")
+            self._record("no_cancelled_tournaments", "FAIL", str(e), screenshot, start)
+        return self.results[-1]
+
     # ── run_all ────────────────────────────────────────────────────────
     async def run_all(self, only=None, random_n=None):
         scenarios = [
@@ -453,6 +557,9 @@ class MafiaParserScenarios(BaseScenario):
             self.test_today_line,          # S10
             self.test_single_line_layout,  # S11
             self.test_manual_nickname,     # S12
+            self.test_no_horizontal_overflow,   # S13
+            self.test_seating_badge_responsive, # S14
+            self.test_no_cancelled_tournaments, # S15
         ]
 
         if only:
@@ -483,6 +590,8 @@ async def _main():
     parser.add_argument("--headed", action="store_true", help="Show browser")
     parser.add_argument("--base-url", default="http://localhost:5055", help="App URL")
     parser.add_argument("--only", nargs="*", help="Run only specific scenarios (e.g. S01 S07)")
+    parser.add_argument("--mobile", action="store_true", help="Run with mobile viewport (390x844)")
+    parser.add_argument("--both", action="store_true", help="Run desktop then mobile")
     args = parser.parse_args()
 
     output_dir = Path(__file__).parent.parent / "test_output"
@@ -490,15 +599,38 @@ async def _main():
 
     total_start = asyncio.get_event_loop().time()
 
+    viewports = []
+    if args.both:
+        viewports = [("desktop", {"width": 1440, "height": 900}, False),
+                     ("mobile", {"width": 390, "height": 844}, True)]
+    elif args.mobile:
+        viewports = [("mobile", {"width": 390, "height": 844}, True)]
+    else:
+        viewports = [("desktop", {"width": 1440, "height": 900}, False)]
+
+    all_results = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=not args.headed)
-        context = await browser.new_context(viewport={"width": 1440, "height": 900})
-        page = await context.new_page()
-
-        suite = MafiaParserScenarios(page, args.base_url, output_dir)
-        results = await suite.run_all(only=args.only)
-
+        for label, vp, is_mobile in viewports:
+            print(f"\n\033[36m━━━ {label.upper()} ({vp['width']}x{vp['height']}) ━━━\033[0m")
+            ctx_kwargs = {"viewport": vp}
+            if is_mobile:
+                ctx_kwargs["is_mobile"] = True
+                ctx_kwargs["device_scale_factor"] = 2
+            context = await browser.new_context(**ctx_kwargs)
+            page = await context.new_page()
+            sub_dir = output_dir / label
+            sub_dir.mkdir(exist_ok=True, parents=True)
+            suite = MafiaParserScenarios(page, args.base_url, sub_dir)
+            suite.OUTPUT_SUBDIR = "mafia-parser"
+            sub_results = await suite.run_all(only=args.only)
+            for r in sub_results:
+                r.name = f"[{label}] {r.name}"
+            all_results.extend(sub_results)
+            await context.close()
         await browser.close()
+
+    results = all_results
 
     # Summary
     total_ms = int((asyncio.get_event_loop().time() - total_start) * 1000)

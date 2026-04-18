@@ -47,6 +47,19 @@
     }
     .badge-seating { background: rgba(46,204,113,0.15); color: var(--green); border: 1px solid rgba(46,204,113,0.3); }
     .badge-no-seating { background: rgba(231,76,60,0.12); color: #e88; border: 1px solid rgba(231,76,60,0.25); }
+    .badge-icon-only { display: none; }
+    @media (max-width: 600px) {
+      body { padding: 16px 8px; }
+      h1 { font-size: 22px; letter-spacing: 2px; }
+      .tournaments-card, .card, .results-card { padding: 16px; }
+      .badge-seating .badge-text-full, .badge-no-seating .badge-text-full { display: none; }
+      .badge-seating .badge-icon-only, .badge-no-seating .badge-icon-only { display: inline; }
+      thead th, tbody td { padding: 6px 4px; font-size: 12px; }
+      thead th:first-child, tbody td:first-child { display: none; }
+      .bar-bg { width: 36px; }
+      .pct-bar { gap: 4px; }
+      .player-name { font-size: 12px; }
+    }
     .badge-online { background: rgba(52,152,219,0.15); color: #5bc; border: 1px solid rgba(52,152,219,0.3); }
     .badge-mafgame { background: rgba(52,152,219,0.1); color: #5bc; border: 1px solid rgba(52,152,219,0.25); font-size: 10px; padding: 1px 6px; }
     .badge-imafia { background: rgba(155,89,182,0.15); color: #c39; border: 1px solid rgba(155,89,182,0.3); font-size: 10px; padding: 1px 6px; }
@@ -492,6 +505,7 @@
       const list = document.getElementById('tournamentsList');
 
       let tournaments = data.tournaments;
+      tournaments = tournaments.filter(t => !/cancell?ed/i.test(t.name || ''));
       if (_source === 'mafgame') tournaments = tournaments.filter(t => t.url.includes('mafgame.org'));
       if (_source === 'imafia') tournaments = tournaments.filter(t => t.url.includes('imafia.org'));
 
@@ -510,8 +524,8 @@
         const day = d.getDate();
         const month = T.months[d.getMonth()];
         const seatingBadge = t.has_seating
-          ? `<span class="t-badge badge-seating">${T.seatingYes}</span>`
-          : `<span class="t-badge badge-no-seating">${T.seatingNo}</span>`;
+          ? `<span class="t-badge badge-seating"><span class="badge-text-full">${T.seatingYes}</span><span class="badge-icon-only">✓</span></span>`
+          : `<span class="t-badge badge-no-seating"><span class="badge-text-full">${T.seatingNo}</span><span class="badge-icon-only">⏳</span></span>`;
         const onlineBadge = t.online ? '<span class="t-badge badge-online">online</span>' : '';
         const sourceBadge = t.source === 'imafia'
           ? '<span class="t-badge badge-imafia">iMafia</span>'
