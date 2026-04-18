@@ -225,9 +225,11 @@ def imafia_analyze(data, target_nickname):
                     joint_games[p] += 1
 
     results = [
-        {'player': p, 'joint': c, 'total': player_games[p],
-         'pct': round(c / target_games * 100) if target_games else 0}
-        for p, c in sorted(joint_games.items(), key=lambda x: x[1], reverse=True)
+        {'player': p, 'joint': joint_games.get(p, 0), 'total': player_games[p],
+         'pct': round(joint_games.get(p, 0) / target_games * 100) if target_games else 0}
+        for p in sorted(player_games.keys(),
+                        key=lambda x: (-joint_games.get(x, 0), x.lower()))
+        if p != target_nickname
     ]
     return results, target_games
 
@@ -308,7 +310,11 @@ def analyze(seats, target_nickname):
                     joint_games[p] += 1
 
     results = []
-    for player, count in sorted(joint_games.items(), key=lambda x: x[1], reverse=True):
+    for player in sorted(player_games.keys(),
+                         key=lambda x: (-joint_games.get(x, 0), x.lower())):
+        if player == target_nickname:
+            continue
+        count = joint_games.get(player, 0)
         results.append({
             'player': player,
             'joint': count,

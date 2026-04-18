@@ -33,6 +33,14 @@ On iPhone widths (375/393px), the results table was still wider than the card an
 
 Verified at 375/393/430px: `docW == innerWidth`, all columns visible with bar + value (e.g. `58%`).
 
+### Show players with 0 joint games
+
+Previously, the results table listed only players with `joint >= 1`. Now it includes every seated tournament participant (except the target) so you can see whom you have no crossings with.
+
+Sort order: by `joint` desc, then by nickname asc as tiebreaker. Both `analyze()` (mafgame) and `imafia_analyze()` updated.
+
+Verified in Four Seasons Cyprus Open (30 participants) — target played 12 games, 29 rows, last row shows `joint=0, pct=0%`.
+
 ### Tests
 
 Added 3 new Titan scenarios and desktop+mobile dual-viewport runner:
