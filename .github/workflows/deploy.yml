@@ -13,7 +13,7 @@ jobs:
         with:
           host: 89.167.108.210
           username: root
-          password: ${{ secrets.SSH_PASSWORD }}
+          key: ${{ secrets.SSH_KEY }}
           script: |
             cd /home/mafia-parser
             git pull
