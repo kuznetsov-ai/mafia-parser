@@ -5,6 +5,9 @@ on:
     - cron: '0 4 * * *'  # 07:00 Cyprus time (UTC+3)
   workflow_dispatch:      # manual trigger
 
+permissions:
+  actions: write
+
 jobs:
   warmup:
     runs-on: ubuntu-latest
@@ -13,3 +16,7 @@ jobs:
         run: |
           curl -s https://mafia.ekuznetsov.dev/api/tournaments > /dev/null
           echo "Cache warmed up at $(date)"
+      - name: Keepalive — reset 60-day scheduled workflow disable timer
+        run: gh api -X PUT repos/${{ github.repository }}/actions/workflows/warmup.yml/enable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
