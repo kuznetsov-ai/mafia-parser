@@ -370,13 +370,24 @@ def api_tournaments():
     # Fetch mafgame — isolated so a failure doesn't block imafia
     try:
         version = get_inertia_version()
-        r = SESSION.get('https://mafgame.org/tournaments',
-            headers={'X-Inertia': 'true', 'X-Inertia-Version': version, 'Accept': 'application/json'},
-            params={'date_from': date_from, 'date_to': date_to, 'per_page': 100},
-            timeout=15)
-        r.raise_for_status()
-        results = r.json().get('props', {}).get('search_results', {})
-        all_tournaments = results.get('data', [])
+        # mafgame.org ignores date_from/date_to/per_page server-side (confirmed
+        # 2026-09-11: a ±2-day query returned tournaments spanning a full year,
+        # 10 per page regardless of per_page) — must page through everything
+        # and filter client-side, or tournaments outside page 1 silently vanish.
+        all_tournaments = []
+        page = 1
+        while True:
+            r = SESSION.get('https://mafgame.org/tournaments',
+                headers={'X-Inertia': 'true', 'X-Inertia-Version': version, 'Accept': 'application/json'},
+                params={'date_from': date_from, 'date_to': date_to, 'per_page': 100, 'page': page},
+                timeout=15)
+            r.raise_for_status()
+            results = r.json().get('props', {}).get('search_results', {})
+            all_tournaments.extend(results.get('data', []))
+            last_page = results.get('last_page', 1)
+            if page >= last_page:
+                break
+            page += 1
 
         all_tournaments = [t for t in all_tournaments
                            if date_from <= t.get('start_date', '') <= date_to]
