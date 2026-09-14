@@ -17,7 +17,7 @@ jobs:
           script: |
             cd /home/mafia-parser
             git pull
-            docker build -t mafia-parser . -q
+            docker build --pull -t mafia-parser . -q
             docker rm -f mafia-parser
             docker run -d --name mafia-parser --restart unless-stopped -p 8090:8080 mafia-parser
             echo "Deployed $(date)"
